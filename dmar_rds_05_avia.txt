@@ -1,0 +1,280 @@
+-- Дмитрий МАРЬИН group dspr-48
+--  ! этот код также лежит в ноутбуке dmar_rds_05_avia.ipynb
+
+-- Задание 4.1 В большинстве городов есть только один аэропорт. 
+-- Исключение составляет:
+SELECT ap.city, COUNT(ap.city) AS port_num
+FROM dst_project.airports AS ap
+GROUP BY ap.city
+HAVING COUNT(ap.city) > 1
+ORDER BY port_num DESC;
+
+-- Задание 4.2 Вопрос 1. 
+-- Какое количество самолетов находятся в воздухе
+SELECT COUNT (f.flight_id)
+FROM dst_project.flights AS f
+WHERE f.status = 'Departed';
+
+-- Задание 4.2 Вопрос 3.
+-- Сколько рейсов было между 1 апреля  и 1 сентября 2017
+SELECT COUNT(*)
+FROM dst_project.flights AS f
+WHERE f.status = 'Arrived'
+  AND f.actual_arrival BETWEEN '2017-04-01' AND '2017-09-01';
+
+-- Задание 4.3 Вопрос 1.
+-- Сколько всего рейсов было отменено 
+SELECT COUNT(*)
+FROM dst_project.flights AS f
+WHERE f.status = 'Cancelled';
+
+-- Задание 4.3 Вопрос 2. 
+-- Сколько моделей самолетов находится в базе
+-- Комментарий - интересно было решить без UNION ALL
+SELECT COUNT(DISTINCT ac1.model) AS "Boeing",
+       COUNT(DISTINCT ac2.model) AS "Sukhoi Superjet",
+       COUNT(DISTINCT ac3.model) AS "Airbus"
+FROM dst_project.aircrafts AS ac1,
+     dst_project.aircrafts AS ac2,
+     dst_project.aircrafts AS ac3
+WHERE ac1.model LIKE 'Boeing%'
+  AND ac2.model LIKE 'Sukhoi Superjet%'
+  AND ac3.model LIKE 'Airbus%';
+
+-- Задание 4.3 Вопрос 3. 
+-- В какой части света находится больше аэропортов
+SELECT UPPER(LEFT(ap.timezone, 3)) AS "Region",
+COUNT(LEFT(ap.timezone, 3)) AS "Number of airports "
+FROM dst_project.airports AS ap
+GROUP BY "Region";
+
+-- Задание 4.3 Вопрос 4.
+-- У какого рейса была самая большая задержка
+SELECT f.flight_id,
+       (f.actual_arrival - f.scheduled_arrival) AS delay
+FROM dst_project.flights AS f
+WHERE f.status = 'Arrived'
+ORDER BY delay DESC
+LIMIT 1;
+
+-- Задание 4.4 Вопрос 1.
+-- Когда был запланирован самый первый вылет
+SELECT scheduled_departure
+FROM dst_project.flights AS f
+ORDER BY scheduled_departure ASC
+LIMIT 1;
+
+-- Задание 4.4 Вопрос 2.
+-- запланированное время полета в самом длительном рейсе
+SELECT (f.scheduled_arrival - f.scheduled_departure) AS flight_duration, 
+EXTRACT(HOUR FROM (f.scheduled_arrival - f.scheduled_departure)) * 60 
++ EXTRACT(MINUTE FROM (f.scheduled_arrival - f.scheduled_departure)) AS flight_duration_in_minutes
+
+FROM dst_project.flights AS f
+ORDER BY flight_duration DESC
+LIMIT 1;
+
+-- Задание 4.4 Вопрос 3.
+-- самый длительный по времени запланированный рейс между
+SELECT f.flight_no,
+    departure_airport,
+    arrival_airport,
+    (f.scheduled_arrival - f.scheduled_departure) AS duration
+FROM dst_project.flights AS f
+ORDER BY duration DESC
+LIMIT 1;
+
+-- Задание 4.4 Вопрос 4.
+-- средняя дальность полета среди всех самолетов в минутах
+SELECT
+AVG(
+EXTRACT(HOUR FROM (f.scheduled_arrival - f.scheduled_departure)) * 60 + EXTRACT(MINUTE FROM (f.scheduled_arrival - f.scheduled_departure))
+)
+FROM dst_project.flights AS f;
+
+-- or variant using aliases (более читабельный)
+SELECT AVG(flight_duration)
+FROM (
+      SELECT EXTRACT(HOUR FROM (f.scheduled_arrival - f.scheduled_departure)) * 60 
+         + EXTRACT(MINUTE FROM (f.scheduled_arrival - f.scheduled_departure)) 
+         AS flight_duration
+      FROM dst_project.flights AS f) AS dummy;
+
+-- Задание 4.5 Вопрос 1.
+-- Мест какого класса у SU9 больше всего
+SELECT s.fare_conditions AS seat_type, COUNT(s.fare_conditions) as seat_qty
+FROM dst_project.seats AS s
+WHERE s.aircraft_code = 'SU9'
+GROUP BY seat_type
+ORDER BY seat_qty DESC
+LIMIT 1;
+
+-- Задание 4.5 Вопрос 2.
+-- бронирование  минимальной стоимости
+SELECT MIN(b.total_amount)
+FROM dst_project.bookings AS b;
+
+-- Задание 4.5 Вопрос 3.
+-- номер места был у пассажира с id = 4313 788533
+SELECT p.seat_no
+FROM dst_project.boarding_passes AS p
+INNER JOIN dst_project.tickets AS t
+ON t.ticket_no = p.ticket_no 
+WHERE t.passenger_id = '4313 788533';
+
+SELECT p.seat_no
+FROM (
+    SELECT t.ticket_no AS tnum_selected_to_use
+    FROM dst_project.tickets AS t
+    WHERE t.passenger_id = '4313 788533'
+    ) AS dummy
+INNER JOIN dst_project.boarding_passes AS p
+ON tnum_selected_to_use = p.ticket_no;
+
+-- Задание 5.1 Вопрос 1.
+-- Сколько рейсов прибыло в Анапу за 2017
+SELECT COUNT(*)
+FROM (
+    SELECT ap.airport_code AS "Anapa IATA code"
+        FROM dst_project.airports AS ap
+        WHERE UPPER(ap.city) LIKE 'ANAPA%'  
+        ) AS dummy_query_name,
+    dst_project.flights AS f
+WHERE f.arrival_airport = "Anapa IATA code"
+    AND f.status = 'Arrived'
+    AND EXTRACT(YEAR FROM actual_arrival) IN (2017);
+
+-- Задание 5.1 Вопрос 2. 
+-- Сколько рейсов из Анапы вылетело зимой 2017
+-- если считать ЯНВ2017 + ФЕВ2017 => 127 (правильный ответ)
+SELECT COUNT(*)
+FROM (SELECT ap.airport_code AS "Anapa IATA code"
+        FROM dst_project.airports AS ap
+        WHERE UPPER(ap.city) LIKE 'ANAPA%') AS dummy,
+    dst_project.flights AS f
+WHERE f.departure_airport = "Anapa IATA code"
+    AND f.actual_departure BETWEEN '2017-01-01' AND '2017-03-01';
+
+-- Задание 5.1 Вопрос 3. 
+-- количество отмененных рейсов из Анапы
+SELECT COUNT(*)
+FROM (SELECT ap.airport_code AS "Anapa IATA code"
+        FROM dst_project.airports AS ap
+        WHERE UPPER(ap.city) LIKE 'ANAPA%') AS dummy,
+    dst_project.flights AS f
+WHERE  f.arrival_airport = "Anapa IATA code"
+    AND f.status = 'Cancelled';
+
+--- Задание 5.1 Вопрос 4.
+-- Сколько рейсов из Анапы не летают в Москву
+SELECT COUNT(f.flight_id)
+FROM dst_project.flights AS f
+WHERE f.departure_airport IN
+        (SELECT ap.airport_code AS "Anapa IATA code"
+              FROM dst_project.airports AS ap
+              WHERE UPPER(ap.city) LIKE 'ANAPA%')
+        AND f.arrival_airport NOT IN 
+            (SELECT ap.airport_code AS "Moscow IATA codes"
+               FROM dst_project.airports AS ap
+               WHERE UPPER(ap.city) LIKE 'MOSCOW%')    
+
+-- Задание 5.1 Вопрос 5.
+-- Какая модель на рейсах из Анапы имеет больше всего мест
+SELECT ac.model, COUNT(s.seat_no)
+FROM dst_project.seats AS s
+JOIN dst_project.aircrafts AS ac
+    ON ac.aircraft_code = s.aircraft_code
+WHERE s.aircraft_code IN
+    (SELECT DISTINCT f.aircraft_code
+        FROM dst_project.flights AS f
+        WHERE f.departure_airport = 
+            (SELECT ap.airport_code
+              FROM dst_project.airports AS ap
+              WHERE LEFT(ap.city, 5) = 'Anapa'))
+GROUP BY ac.model
+ORDER BY 1
+LIMIT 1;
+
+-- ОСНОВНОЕ ЗАДАНИЕ
+-- имеющиеся в базе рейсы в Новокузнецк
+-- не коммерческие, учитываться не будут
+
+-- 1. предварительный оценочный запрос (его нет в задании)
+-- Получение ключи для основного запроса:
+SELECT DISTINCT f.flight_no, f.aircraft_code, ac.model,
+    f.arrival_airport, ap.city, tf.fare_conditions, --<< класс салона
+    COUNT(tf.ticket_no) AS pax, --<<< общее число пассажиров
+    SUM(tf.amount) AS revenue    --<<< доход от продажи билетов
+FROM dst_project.ticket_flights AS tf
+INNER JOIN dst_project.flights AS f
+    ON tf.flight_id = f.flight_id
+INNER JOIN dst_project.airports AS ap
+    ON f.arrival_airport = ap.airport_code
+INNER JOIN dst_project.aircrafts AS ac
+    ON f.aircraft_code = ac.aircraft_code
+WHERE departure_airport = 'AAQ'
+    AND f.scheduled_departure BETWEEN '2016-12-01' AND '2017-03-01'
+    AND f.status not in ('Cancelled')
+GROUP BY f.flight_no, f.aircraft_code, ac.model, f.arrival_airport, ap.city,
+    tf.fare_conditions;
+
+-- 2. Основной запрос
+-- рейс, дата, тип ВС, куда, продолжительность, 
+-- выручка, число паксов, число мест, % заполнения
+-- Рейсы из Анапы с билетами без разбивки по классам ДЕК 2016 - ФЕВ 2017
+SELECT f.flight_id, f.scheduled_departure, f.aircraft_code, f.arrival_airport, 
+    EXTRACT(HOUR FROM (f.scheduled_arrival - f.scheduled_departure)) * 60 
+    + EXTRACT(MINUTE FROM (f.scheduled_arrival - f.scheduled_departure))    
+        AS duration,             --<<< продолжительность полета
+    SUM(tf.amount) AS revenue,   --<<< доход от продажи билетов
+    COUNT(tf.ticket_no) AS pax,  --<<< пассажиров на рейсе
+    (SELECT COUNT(s.seat_no)
+    FROM dst_project.seats AS s
+    WHERE s.aircraft_code = f.aircraft_code) AS capacity,  --<<< мест в салоне
+    (100.0 * COUNT(tf.ticket_no) /
+    (SELECT COUNT(s.seat_no)
+    FROM dst_project.seats AS s
+    WHERE s.aircraft_code = f.aircraft_code)) AS occupancy_rate  --< % заполнения
+FROM dst_project.ticket_flights AS tf
+INNER JOIN dst_project.flights AS f
+    ON tf.flight_id = f.flight_id
+WHERE departure_airport = 'AAQ'
+    AND f.scheduled_departure BETWEEN '2016-12-01' AND '2017-03-01'
+    AND status not in ('Cancelled')
+GROUP BY f.flight_id, f.aircraft_code, f.arrival_airport;
+
+-- 3. Дополнительный запрос - с разбивкой по классам
+-- ID рейса, дата, тип ВС, куда, продолжительность, 
+-- выручка, число паксов, число мест, % заполнения, + класс
+SELECT f.flight_id, f.scheduled_departure, f.aircraft_code, f.arrival_airport, 
+    EXTRACT(HOUR FROM (f.scheduled_arrival - f.scheduled_departure)) * 60 
+    + EXTRACT(MINUTE FROM (f.scheduled_arrival - f.scheduled_departure))    
+        AS duration, --<<< продолжительность полета
+    tf.fare_conditions AS class, --<<< класс салона
+    SUM(tf.amount) AS revenue,   --<<< доход от продажи билетов
+    COUNT(tf.ticket_no) AS pax,  --<<< пассажиров на рейсе
+    (SELECT COUNT(s.seat_no)
+        FROM dst_project.seats AS s
+        WHERE s.aircraft_code = f.aircraft_code
+        AND s.fare_conditions= tf.fare_conditions
+    ) AS capacity,               --<<< посадочных мест в салоне
+    (100.0 * COUNT(tf.ticket_no) /
+        (SELECT COUNT(s.fare_conditions)
+            FROM dst_project.seats AS s
+            WHERE s.aircraft_code = f.aircraft_code
+            AND s.fare_conditions= tf.fare_conditions)
+         ) AS occupancy_rate     --<<< процент заполнения салона
+FROM dst_project.ticket_flights AS tf --<<< базовая таблица ticket_flight  
+INNER JOIN dst_project.flights AS f
+    ON tf.flight_id = f.flight_id
+WHERE departure_airport = 'AAQ'
+    AND f.scheduled_departure BETWEEN '2016-12-01' AND '2017-03-01'
+    AND status not in ('Cancelled')
+GROUP BY f.flight_id, f.aircraft_code, f.arrival_airport, tf.fare_conditions;
+
+-- файлы 
+-- 1. dmar_rds_05_avia.ipynb - ноутбук
+-- 2. avia.csv - основной запрос
+-- 3. aviaclass.csv - дополнительный анализ по тарифным классам
+-- 4. avia.ppt - презентация
+-- 5. dmar_rds_05_avia.txt - этот файл
